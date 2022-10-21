@@ -9,7 +9,10 @@ library(dplyr)
 
 baseUrlWebApi <- keyring::key_get("baseUrl")
 
-# baseCohort <- ROhdsiWebApi::getCohortDefinition(1487, baseUrl = "https://atlas-covid19.ohdsi.org/WebAPI")
+# baseUrl = "https://atlas-demo.ohdsi.org/WebAPI"
+
+# # a small chunk of test code to query the Atlas Web API
+# baseCohort <- ROhdsiWebApi::getCohortDefinition(1487, baseUrl = "https://atlas-demo.ohdsi.org/WebAPI")
 # baseCohortJson <- RJSONIO::toJSON(baseCohort$expression, indent = 2, digits = 50)
 # SqlRender::writeSql(baseCohortJson, targetFile = "inst/settings/baseCohort.json")
 # saveRDS(baseCohort, file = "inst/settings/baseCohort.rds")
@@ -284,6 +287,7 @@ permuteTC <- function(cohort, permutation, ingredientLevel = FALSE) {
   return(cohort)
 }
 
+# class level SQL
 allCohortsSql <-
   do.call("rbind",
           lapply(1:nrow(permutations), function(i) {
@@ -294,6 +298,7 @@ allCohortsSql <-
             return(cohortSql)
           }))
 
+# json generation (class-level)
 allCohortsJson <-
   do.call("rbind",
           lapply(1:nrow(permutations), function(i) {
@@ -312,6 +317,7 @@ permutations <- permutations %>%
 
 permutations$atlasName <- makeShortName(permutations)
 
+# save those class-level SQL and JSONs
 for (i in 1:nrow(permutations)) {
   row <- permutations[i,]
   sqlFileName <- file.path("inst/sql/sql_server/class", paste(row$name, "sql", sep = "."))
@@ -402,11 +408,13 @@ readr::write_csv(classTcos, "inst/settings/classTcosOfInterest.csv")
 
 
 
-
+# !!
 # Generate ingredient-level cohorts
 permutations <- readr::read_csv("extra/classGeneratorList.csv")
 exposuresOfInterestTable <- readr::read_csv("inst/settings/ExposuresOfInterest.csv")
-permutations <- inner_join(permutations, exposuresOfInterestTable %>% select(cohortId, shortName), by = c("targetId" = "cohortId"))
+permutations <- inner_join(permutations,
+                           exposuresOfInterestTable %>% select(cohortId, shortName),
+                           by = c("targetId" = "cohortId"))
 
 # permutations <- permutations %>% filter(cohortId == 101100000)
 # classId <- 10
@@ -424,7 +432,9 @@ createPermutationsForDrugs <- function(classId){
     mutate(name = paste0("ID", as.integer(cohortId)))
 }
 
-classIds <- c(10, 20, 30, 40)
+# try DPP4 I first...
+#classIds <- c(10, 20, 30, 40)
+classIds = c(10)
 permutationsForDrugs <- lapply(classIds, createPermutationsForDrugs) %>% bind_rows()
 
 permutationsForDrugs$json <-
@@ -445,13 +455,14 @@ permutationsForDrugs$sql <-
                                                     generateStats = generateStats)
           }))
 
-cohortDefinition <- permuteTC(baseCohort, permutationsForDrugs[1,])
+#cohortDefinition <- permuteTC(baseCohort, permutationsForDrugs[1,])
 
+# save under drug class name sub-folder
 for (i in 1:nrow(permutationsForDrugs)) {
   row <- permutationsForDrugs[i,]
-  sqlFileName <- file.path("inst/sql/sql_server/drug", paste(row$name, "sql", sep = "."))
+  sqlFileName <- file.path("inst/sql/sql_server/drug", row$class, paste(row$name, "sql", sep = "."))
   SqlRender::writeSql(row$sql, sqlFileName)
-  jsonFileName <- file.path("inst/cohorts/drug", paste(row$name, "json", sep = "."))
+  jsonFileName <- file.path("inst/cohorts/drug", row$class, paste(row$name, "json", sep = "."))
   SqlRender::writeSql(row$json, jsonFileName)
 }
 
